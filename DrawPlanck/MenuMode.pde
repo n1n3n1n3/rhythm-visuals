@@ -4,9 +4,16 @@ public class MenuMode extends Mode {
 
   private int choiceIndex;
   private int menuIndex;
+
   final private int titleVerticalMargin = 65; 
   final private int planckHeight = height - titleVerticalMargin; 
-  final private int positions[][] = {{width/4, planckHeight/4 + titleVerticalMargin}, {3*width/4, planckHeight/4 + titleVerticalMargin}, {width/4, 3*planckHeight/4 + titleVerticalMargin}, {3*width/4, 3*planckHeight/4 + titleVerticalMargin}};
+  final private int positions[][] = {
+  {width/4, planckHeight/4 + titleVerticalMargin},
+  {3*width/4, planckHeight/4 + titleVerticalMargin},
+  {width/4, 3*planckHeight/4 + titleVerticalMargin},
+  {3*width/4, 3*planckHeight/4 + titleVerticalMargin}};
+
+//this does not have to look like this
   final private int cornerPositionFlags[][] = {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 0, 1}, {0, 0, 1, 0} };
   final private PFont menuFont;
   final private PFont menuBoldFont;
@@ -15,7 +22,7 @@ public class MenuMode extends Mode {
   private PImage bgImage;
   private PGraphics pg;
 
-  public MenuMode() {
+public MenuMode() {
     this.modeName = "Menu";
 
     //sets loaded config
@@ -53,10 +60,68 @@ public class MenuMode extends Mode {
     textAlign(CENTER);
 
     //select mode
+   
+    
     if (choiceIndex >= 0 && ((menuIndex * 3) + choiceIndex) < modes.size() - 1) {
+      //print("choice: ");
+      //println(choiceIndex); 
+      //println("waiting 500");
+      //fill(0, 100, 100, 255);
+      //ellipse(width / 2, height / 2, 100, 100);
+      //delay(1000);
+      //println("...done waiting 500"); 
       nextMode =(menuIndex * 3) + choiceIndex + 1;
+      
+      //Nina edit
+      //print("choice: ");
+      //println(choiceIndex); 
+      //println("waiting 500");
+      //fill(0, 100, 100, 255);
+      //ellipse(width / 2, height / 2, 100, 100);
+      //delay(1000);
+      //println("...done waiting 500"); 
+      
     } else {
-      //Draw choices
+      renderMenu();
+    }
+  }
+
+  public void handleMidi(byte[] raw, byte messageType, int channel, int note, int vel, int controllerNumber, int controllerVal, Pad pad) {    
+    //filter out unassigned notes, note_off messages and unused pads
+    if (pad != null && vel > 0) {
+      switch (pad.name) {
+      case "BOTTOM_RIGHT_NOTE" :
+        fill(0, 100, 100, 255);
+        ellipse(width / 2 + 100, height / 100 + 100, 100, 100);
+        delay(500);
+        if (menuIndex + 1 <  Math.ceil((modes.size() - 1) / 3.0)) {
+          menuIndex++;
+        } else {
+          menuIndex = 0;
+        }
+        break;
+      case "TOP_LEFT_NOTE":
+        fill(0, 100, 100, 255);
+        ellipse(width / 2 - 100, height / 100 - 100, 100, 100);
+        choiceIndex = 0;
+        break;
+      case "TOP_RIGHT_NOTE":
+        fill(0, 100, 100, 255);
+        ellipse(width / 2 + 100, height / 100 + 100, 100, 100);
+        choiceIndex = 1;
+        break;
+      case "BOTTOM_LEFT_NOTE":
+        fill(0, 100, 100, 255);
+        ellipse(width / 2 - 100, height / 100 + 100, 100, 100);
+        choiceIndex = 2;
+        break;
+      }
+      delay(500);
+    }
+  }
+  
+  public void renderMenu(){
+    //Draw choices
       textFont(menuBoldFont);
       textSize(48);
       text("Visuels rythmiques - Rhythmic Visuals", width/2, titleVerticalMargin);
@@ -105,30 +170,5 @@ public class MenuMode extends Mode {
       textSize(22);
       text("Maintenir ce pad pour revenir au menu", positions[0][0], positions[0][1]+62);
       text("Hold this pad to return to menu", positions[0][0], positions[0][1]+88);
-    }
-  }
-
-  public void handleMidi(byte[] raw, byte messageType, int channel, int note, int vel, int controllerNumber, int controllerVal, Pad pad) {    
-    //filter out unassigned notes, note_off messages and unused pads
-    if (pad != null && vel > 0) {
-      switch (pad.name) {
-      case "BOTTOM_RIGHT_NOTE" :
-        if (menuIndex + 1 <  Math.ceil((modes.size() - 1) / 3.0)) {
-          menuIndex++;
-        } else {
-          menuIndex = 0;
-        }
-        break;
-      case "TOP_LEFT_NOTE":
-        choiceIndex = 0;
-        break;
-      case "TOP_RIGHT_NOTE":
-        choiceIndex = 1;
-        break;
-      case "BOTTOM_LEFT_NOTE":
-        choiceIndex = 2;
-        break;
-      }
-    }
   }
 }

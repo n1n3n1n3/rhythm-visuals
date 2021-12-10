@@ -34,7 +34,8 @@ public class TreeMode extends Mode {
 
     branch = new ArrayList<Branch>();
     offset = -90.0;
-    pixelDensity(displayDensity());
+//took this line out because it was causing problems
+    //pixelDensity(displayDensity());
     colorMode(HSB, 255, 255, 255, 255);  
 
     background(25, 180, 255);
