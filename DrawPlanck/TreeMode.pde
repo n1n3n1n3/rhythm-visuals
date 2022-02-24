@@ -15,9 +15,14 @@ public class TreeMode extends Mode {
 
   PImage vdj_logo;
   PImage ae_logo;
+  PImage bg_image;
   long drawStart;
 
   static final int BRANCH_COLOR_CHANGE = 50;
+
+  int Y_AXIS = 1;
+  int X_AXIS = 2;
+  color b1, b2, b3, b4;
 
   public TreeMode() {
     this.redrawBackground = false;
@@ -29,21 +34,27 @@ public class TreeMode extends Mode {
     println(loadedConfig);
   }
 
+  //public void settings(){
+
+  //}
+
   public void setup() {
     System.out.println("MODE: Tree");
 
     branch = new ArrayList<Branch>();
     offset = -90.0;
-//took this line out because it was causing problems
     //pixelDensity(displayDensity());
     colorMode(HSB, 255, 255, 255, 255);  
 
-    background(25, 180, 255);
+    //background(25, 180, 255);
+    //background(121, 222, 255, 100);
+    //background(0);
 
-    //ae_logo = loadImage("ae.png");
+    bg_image = loadImage("Tree_bg.png");
+    ae_logo = loadImage("ae.png");
     //vdj_logo = loadImage("bitmap_noir.png");
     //vdj_logo.resize((int) (vdj_logo.width * 0.33), 0);
-
+    bg_image.resize(width, height);
     colorMode(RGB, 255, 255, 255, 100);
     branch.add(new Branch(width / 2, height, width / 2, height - 80.0, 80.0, 0.0));
     count = 0;
@@ -51,9 +62,13 @@ public class TreeMode extends Mode {
     s_weight = 0;
     //colorize = false;
     draw = false;
+
+    image(bg_image, 0, 0);
+    image(ae_logo, 50, height - 300);
   }
 
   public void draw() {
+
     //colorMode(HSB, 255, 255, 255, 255);
     ////check if a pad was pressed
     //for (int i = 0; i < numPads; i++) {
@@ -142,7 +157,7 @@ public class TreeMode extends Mode {
       nextx += (endx - nextx) * 0.65;
       nexty += (endy - nexty) * 0.65;
       s_color = int (count / 10.0);
-      s_weight = 3.0 / (count / 100 + 1);
+      s_weight = 2.0 / (count / 100 + 1);
       if (abs (nextx - endx) < 1.0 && abs (nexty - endy) < 1.0 && next_flag == true) {
         next_flag = false;
         draw_flag = false;
@@ -175,9 +190,9 @@ public class TreeMode extends Mode {
     public void Render() {
       if (draw_flag == true) {
         if (branch.size() < BRANCH_COLOR_CHANGE)
-          stroke(noisy(139), noisy(69), noisy(19));//stroke (s_color);
+          stroke(noisy(100), noisy(69), noisy(19));//stroke (s_color);
         else
-          stroke(0, noisy(100), 0);
+          stroke(noisy(20), noisy(100), noisy(40));
         strokeWeight (s_weight);
         line (prevx, prevy, nextx, nexty);
       }
@@ -189,5 +204,26 @@ public class TreeMode extends Mode {
   private int noisy(int val) {
     int minRange = 15;
     return (int) (val + random(min(-val/4, -minRange), max(val/4, minRange)));
+  }
+}
+
+void setGradient(int x, int y, float w, float h, color c1, color c2, int axis ) {
+
+  noFill();
+
+  if (axis == 1) {  // Top to bottom gradient
+    for (int i = y; i <= y+h; i++) {
+      float inter = map(i, y, y+h, 0, 1);
+      color c = lerpColor(c1, c2, inter);
+      stroke(c);
+      line(x, i, x+w, i);
+    }
+  } else if (axis == 2) {  // Left to right gradient
+    for (int i = x; i <= x+w; i++) {
+      float inter = map(i, x, x+w, 0, 1);
+      color c = lerpColor(c1, c2, inter);
+      stroke(c);
+      line(i, y, i, y+h);
+    }
   }
 }

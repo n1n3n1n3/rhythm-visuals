@@ -27,16 +27,21 @@ final ArrayList<Pad> pads = new ArrayList<Pad>();
 //sum of named and auxiliary pads
 int numPads;
 
+//Should fill this with its default config vars before calling loadGlobalConfigFrom()
+//Properties are stored as strings
+//e.g. this.globalDefaultConfig.setProperty("SHRINK_FACTOR", "0.95");
+//TODO: refactor config loading so that modes and main script can use same code (e.g. ConfigLoader class)
+//TODO: change to arg in loadGlobalConfigFrom() instead of global to avoid conflicts (and globals in general...)
 final Properties globalDefaultConfig = new Properties();
 
 //filled by loadConfig()
 Properties globalLoadedConfig;
 
 MidiBus myBus;
-int deviceIndex = 1;
+
 //background image
 PGraphics pg;
-PImage logo;
+
 //for BPM running average calcs
 final int bpmSampleSize = 8;
 
@@ -73,25 +78,157 @@ PFont defaultFont;
 int nextMode = -1;
 
 void setup() {
-  size(800, 600, P3D);
-  //fullScreen(P3D, 2);
+  //size(800, 600, P2D);
+  fullScreen(P3D, 1);
   frameRate(30);
+
+  globalDefaultConfig.setProperty("LOGO_SCALING", "0.05");
+  globalDefaultConfig.setProperty("MIDI_DEVICE", "0");
+  globalDefaultConfig.setProperty("MILLISECONDS_FOR_MODE_SWITCH", "3000");
+  globalDefaultConfig.setProperty("BOTTOM_RIGHT_NOTE", "80");
+  globalDefaultConfig.setProperty("BOTTOM_LEFT_NOTE", "84");
+  globalDefaultConfig.setProperty("TOP_LEFT_NOTE", "82");
+  globalDefaultConfig.setProperty("TOP_RIGHT_NOTE", "85");
+  globalDefaultConfig.setProperty("AUX_PAD_NOTES", "");
+  globalDefaultConfig.setProperty("WITH_BACKGROUND", "1");
+
+  //read config file
+  loadGlobalConfigFrom("config.properties");
+
+  //parse auxiliary notes list from config
+  ArrayList<Integer> auxPadNotes = new ArrayList<Integer>(); 
+  List<String> string_aux_pad_notes = Arrays.asList(globalLoadedConfig.getProperty("AUX_PAD_NOTES").split("\\s*,\\s*"));
+  Iterator<String> iter = string_aux_pad_notes.iterator();
+  while (iter.hasNext()) {
+    String next = iter.next();
+    try {
+      auxPadNotes.add(Integer.parseInt(next));
+    }
+    catch (NumberFormatException e) {
+      println("Warning: Config var AUX_PAD_NOTES is either empty or not of expected type (int). Ignoring its value: " + next);
+    }
+  }
+  println("Global config: ");  
+  println(globalLoadedConfig);
+  println();
+
+  //create pad list
+  for (int i = 0; i < namedPads.length; i++) {
+    int note = getIntProp(namedPads[i]);
+    println(namedPads[i] + " : " + note);
+    pads.add(new Pad(namedPads[i], note, false));
+  }
+  for (int i = 0; i < auxPadNotes.size(); i++) {
+    int note = auxPadNotes.get(i);
+    println("AUX_" + i + " : " + note);
+    pads.add(new Pad(namedPads[i], note, true));
+  }
+
+  numPads = pads.size(); 
+
+  //setup midi
+  MidiBus.list(); 
+  myBus = new MidiBus(this, getIntProp("MIDI_DEVICE"), 1); 
+
+  //Create background static image (PGraphic)
+  noFill();
+  stroke(255, 0, 0);
+  pg = createGraphics(width, height);
+  PImage logo;
+  logo = loadImage("bitmap.png");
+  println();
+  pg.beginDraw();
+  pg.background(0);
+
+  if (getIntProp("WITH_BACKGROUND") == 1) {
+    int newWidth = (int)(logo.width * getFloatProp("LOGO_SCALING"));
+    int newHeight = (int) (logo.height * getFloatProp("LOGO_SCALING"));
+    pg.tint(255, 64); //make transparent
+    pg.image(logo, width/2-(newWidth/2), height/2-(newHeight/2), newWidth, newHeight);
+  }
+
+  pg.endDraw();
+
+  //global state init
+  padWasPressed = new ArrayList<Boolean>();
+  pressCounter = new ArrayList<Integer>();  
+  for ( int padIndex = 0; padIndex < numPads; padIndex++) {
+    padWasPressed.add(false);
+    pressCounter.add(0);
+  }
+
+  //Create modes and initialize currentMode
+  modes.add(new MenuMode()); 
+  modes.add(new CircleMode());
+  modes.add(new SuperluminalMode());
+  modes.add(new TreeMode());
+  modes.add(new FlockMode());
+  modes.add(new WordMode());
+  modes.add(new AboutMode());
+
+  currentModeIndex = 0;
+  currentMode = modes.get(currentModeIndex);
+  currentMode.setup();
+
   //easier to scale
   colorMode(HSB, 255);
+
   defaultFont = createFont("Arial", 14);
-  
-  setGlobalProperties();
-  setNotes();
-  setMidi();
-  setBackground();
-  setPads();
-  setModes();
 }
 
 void draw() {
-  drawCurrentMode();
-  checkPads();
-  switchModes();
+  if (currentMode.redrawBackground)
+    //Redraw bg to erase previous frame
+    background(pg);
+
+  //Increment synchronous press counters (don't check pressCounter asynchronously)
+  for (int padIndex = 0; padIndex < numPads; padIndex++) {
+    Pad pad = pads.get(padIndex);
+    if (padWasPressed.get(padIndex)) {
+      //reset pressCounter on other pads
+      for (int otherpad = 0; otherpad<numPads; otherpad++) {
+        if (otherpad != padIndex) {
+          pressCounter.set(otherpad, 0);
+        }
+      }
+      //increment own presscounter
+      pressCounter.set(padIndex, pressCounter.get(padIndex) + 1);
+    }
+  }
+
+  //return to menu
+  if (switchingPadHeld && System.currentTimeMillis() - switchingPadHeldSince >= this.getIntProp("MILLISECONDS_FOR_MODE_SWITCH")) {
+    switchingPadHeldSince = System.currentTimeMillis();    
+    nextMode = 0;
+  }
+
+  //switching modes
+  if (nextMode >= 0) {
+    currentMode = modes.get(nextMode);
+    //reset colors
+    defaultDrawing();
+    currentMode.setup();
+    //reset all pressed flags before drawing new mode
+    for (int padIndex = 0; padIndex < numPads; padIndex++) {
+      padWasPressed.set(padIndex, false);
+      pressCounter.set(padIndex, 0);
+    }  
+    nextMode = -1;
+  }
+
+  currentMode.draw();
+
+  //write BPM to screen
+  defaultDrawing();
+  fill(0, 0, 0);
+  pushMatrix();
+  translate(0, 0, 1);
+  //noStroke();
+  rect( 20, height - 20 - 20, 70, 20);
+  fill(0, 0, 255);
+  text("BPM: " + (int)currentBpm, 25, height - 20 - 5);
+  popMatrix();
+  defaultDrawing();
 }
 
 void loadGlobalConfigFrom(String configFileName) {
@@ -262,188 +399,4 @@ void defaultDrawing() {
   textFont(defaultFont);
   textAlign(LEFT);
   strokeWeight(1);
-}
-
-void drawCurrentMode(){
-   if (currentMode.redrawBackground)
-    //Redraw bg to erase previous frame
-    background(pg);
-  
-  currentMode.draw();
-
-  //write BPM to screen
-  defaultDrawing();
-  fill(0, 0, 0);
-  pushMatrix();
-  translate(0, 0, 1);
-  //noStroke();
-  rect( 20, height - 20 - 20, 70, 20);
-  fill(0, 0, 255);
-  text("BPM: " + (int)currentBpm, 25, height - 20 - 5);
-  
-  fill(#ffffff);
-  rect(20, height - 150, 200, 100);
-  fill(#ff8000);
-  rect(20 + 5, height - 150, 80, 40);
-  rect(20 + 60, height - 150, 80, 40);
-  rect(20, height - 50, 80, 40);
-  rect(20 + 60, height - 50, 80, 40);
-  
-  popMatrix();
-  defaultDrawing();
-}
-
-void checkPads(){
-    //Increment synchronous press counters (don't check pressCounter asynchronously)
-  for (int padIndex = 0; padIndex < numPads; padIndex++) {
-    Pad pad = pads.get(padIndex);
-    if (padWasPressed.get(padIndex)) {
-      //reset pressCounter on other pads
-      for (int otherpad = 0; otherpad<numPads; otherpad++) {
-        if (otherpad != padIndex) {
-          pressCounter.set(otherpad, 0);
-        }
-      }
-      //increment own presscounter
-      pressCounter.set(padIndex, pressCounter.get(padIndex) + 1);
-    }
-  }
-  
-    //return to menu
-  if (switchingPadHeld && System.currentTimeMillis() - switchingPadHeldSince >= this.getIntProp("MILLISECONDS_FOR_MODE_SWITCH")) {
-    switchingPadHeldSince = System.currentTimeMillis();    
-    nextMode = 0;
-  }
-}
-
-void switchModes(){
-    //switching modes
-  if (nextMode >= 0) {
-    
-    if (currentMode.modeName == "Menu"){
-      fill(100, 100, 0);
-      ellipse(width / 2, height / 2, 100, 100);
-      delay(500);
-    }
-    
-    currentMode = modes.get(nextMode);
-    
-    //reset colors
-    defaultDrawing();
-    //Nina edit :: this seemingly does not work =_+
-    text("switching modes" , width / 2, height / 2 );
-    currentMode.setup();
-    //reset all pressed flags before drawing new mode
-    for (int padIndex = 0; padIndex < numPads; padIndex++) {
-      padWasPressed.set(padIndex, false);
-      pressCounter.set(padIndex, 0);
-    }  
-    nextMode = -1;
-  }
-}
-
-void setGlobalProperties(){
-//Should fill this with its default config vars before calling loadGlobalConfigFrom()
-//Properties are stored as strings
-//e.g. this.globalDefaultConfig.setProperty("SHRINK_FACTOR", "0.95");
-//TODO: refactor config loading so that modes and main script can use same code (e.g. ConfigLoader class)
-//TODO: change to arg in loadGlobalConfigFrom() instead of global to avoid conflicts (and globals in general...)
-  globalDefaultConfig.setProperty("LOGO_SCALING", "0.05");
-  globalDefaultConfig.setProperty("MIDI_DEVICE", "0");
-  globalDefaultConfig.setProperty("MILLISECONDS_FOR_MODE_SWITCH", "3000");
-  globalDefaultConfig.setProperty("BOTTOM_RIGHT_NOTE", "80");
-  globalDefaultConfig.setProperty("BOTTOM_LEFT_NOTE", "84");
-  globalDefaultConfig.setProperty("TOP_LEFT_NOTE", "82");
-  globalDefaultConfig.setProperty("TOP_RIGHT_NOTE", "85");
-  globalDefaultConfig.setProperty("AUX_PAD_NOTES", "");
-  globalDefaultConfig.setProperty("WITH_BACKGROUND", "1");
-  
-  //read config file
-  loadGlobalConfigFrom("config.properties");
-  println("Global config: ");  
-  println(globalLoadedConfig);
-  println();
-
-}
-
-void setNotes(){
-    //parse auxiliary notes list from config
-  ArrayList<Integer> auxPadNotes = new ArrayList<Integer>(); 
-  List<String> string_aux_pad_notes = Arrays.asList(globalLoadedConfig.getProperty("AUX_PAD_NOTES").split("\\s*,\\s*"));
-  Iterator<String> iter = string_aux_pad_notes.iterator();
-  while (iter.hasNext()) {
-    String next = iter.next();
-    try {
-      auxPadNotes.add(Integer.parseInt(next));
-    }
-    catch (NumberFormatException e) {
-      println("Warning: Config var AUX_PAD_NOTES is either empty or not of expected type (int). Ignoring its value: " + next);
-    }
-  }
-  
-
-      //create pad list
-  for (int i = 0; i < namedPads.length; i++) {
-    int note = getIntProp(namedPads[i]);
-    println(namedPads[i] + " : " + note);
-    pads.add(new Pad(namedPads[i], note, false));
-  }
-  for (int i = 0; i < auxPadNotes.size(); i++) {
-    int note = auxPadNotes.get(i);
-    println("AUX_" + i + " : " + note);
-    pads.add(new Pad(namedPads[i], note, true));
-  }
-  
-  numPads = pads.size(); 
-}
-
-void setBackground(){
-  noFill();
-  stroke(255, 0, 0);
-  pg = createGraphics(width, height);
-  logo = loadImage("bitmap.png");
-  println();
-  pg.beginDraw();
-  pg.background(0);
-  
-  if (getIntProp("WITH_BACKGROUND") == 1) {
-    int newWidth = (int)(logo.width * getFloatProp("LOGO_SCALING"));
-    int newHeight = (int) (logo.height * getFloatProp("LOGO_SCALING"));
-    pg.tint(255, 64); //make transparent
-    pg.image(logo, width/2-(newWidth/2), height/2-(newHeight/2), newWidth, newHeight);
-  }
-
-  pg.endDraw();
-}
-
-void setMidi(){
-    //setup midi
-  MidiBus.list(); 
-  //myBus = new MidiBus(this, getIntProp("MIDI_DEVICE"), 1); 
-  myBus = new MidiBus(this, deviceIndex, -1);
-}
-
-void setModes(){
-    //Create modes and initialize currentMode
-  modes.add(new MenuMode()); 
-  modes.add(new CircleMode());
-  modes.add(new SuperluminalMode());
-  modes.add(new TreeMode());
-  modes.add(new FlockMode());
-  modes.add(new WordMode());
-  modes.add(new AboutMode());
-
-  currentModeIndex = 0;
-  currentMode = modes.get(currentModeIndex);
-  currentMode.setup();
-}
-
-void setPads(){
-    //global state init
-  padWasPressed = new ArrayList<Boolean>();
-  pressCounter = new ArrayList<Integer>();  
-  for ( int padIndex = 0; padIndex < numPads; padIndex++) {
-    padWasPressed.add(false);
-    pressCounter.add(0);
-  }
 }

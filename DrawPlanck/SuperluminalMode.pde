@@ -8,6 +8,9 @@ public class SuperluminalMode extends Mode {
   private int padVelocity = 1;
   private int redRandomVal = 70;
 
+  PShape logo;
+  color logo_color;
+
   public SuperluminalMode() {
     this.modeName = "Superlumineux - Superluminal";
 
@@ -54,7 +57,7 @@ public class SuperluminalMode extends Mode {
 
     //sets loaded config
     loadConfigFrom("superluminal_config.properties");
-
+    logo = loadShape("Logo_violon_de_jos_vecto contour.svg");
 
     String startColorsRaw[][] = new String[numPads+1][3];
     String endColorsRaw[][] = new String[numPads+1][3];
@@ -118,6 +121,7 @@ public class SuperluminalMode extends Mode {
     float starGrowFactor;
     int starSpeed;
 
+    background(0);
     //create constant stars flow in background if config ON
     if (bgFlow) {
       for (int i = 0; i < this.getIntProp("BG_STARS_NUMBER"); i++) {
@@ -161,10 +165,11 @@ public class SuperluminalMode extends Mode {
         //println("rand end:"+randomEndRed);
         color startCol = color(randomStartRed, this.startColors[padIdx][1], this.startColors[padIdx][2]);
         color endCol = color(randomEndRed, this.endColors[padIdx][1], this.endColors[padIdx][2]);
-
+        logo_color = endCol;
         //create as much stars as configured for this pad
         //related to pad velocity
-        starNumber *= padVelocity*this.getFloatProp("VELOCITY_FACTOR");
+        //starNumber *= padVelocity*this.getFloatProp("VELOCITY_FACTOR");
+        starNumber = 10;
         for (int i = 0; i < starNumber; i++) {
           stars.add(new Star(
             starGrowFactor, 
@@ -199,6 +204,12 @@ public class SuperluminalMode extends Mode {
       }
     }
     //printArray(stars);
+    fill(0);
+    noStroke();
+    ellipse(width / 2, height / 2, 300, 300);
+    logo.disableStyle();
+     fill(logo_color);  // Set the SVG fill to blue
+    shape(logo, width / 2 - 150, height / 2 - 150, 300, 300);
   }
 
   public void handleMidi(byte[] raw, byte messageType, int channel, int note, int vel, int controllerNumber, int controllerVal, Pad pad) {

@@ -12,7 +12,7 @@ public class CircleMode extends Mode {
 
   private PImage bgImage;
   private PGraphics pg;
-
+  color[] slave_colors = {color(155, 255, 255), color(255, 255, 0),  color(255, 180, 255), color(180, 155, 255), color(195, 255, 0)};
 
   public CircleMode() {
     this.modeName = "Graines de Beignes - Doughnut Seeds";
@@ -39,7 +39,7 @@ public class CircleMode extends Mode {
 
     //Create background and scale to screen while keeping proportions
     this.pg = createGraphics(width, height);
-    this.bgImage = loadImage("circle_bg.jpg");    
+    this.bgImage = loadImage("gdb_bg.png");    
     this.pg.beginDraw();
     this.pg.background(0);
     bgImage.resize(width, 0);      
@@ -119,7 +119,7 @@ public class CircleMode extends Mode {
     }
 
     int newColor = constrain(Math.round(map(constrainedBpm, 40, 150, this.getIntProp("SENSOR_COLOR_RANGE_MIN"), this.getIntProp("SENSOR_COLOR_RANGE_MAX"))) + this.colorOffset, 0, 255);
-
+    
     for (int pad = 0; pad < numPads; pad++) {
       pushMatrix();
       PVector vertex = planche.getVertex(pad);
@@ -155,7 +155,7 @@ public class CircleMode extends Mode {
         circle.scale(this.getFloatProp("SHRINK_FACTOR"));
       }
 
-      circle.setStroke(color(newColor, 170, 255));  
+      circle.setStroke(slave_colors[floor(random(0, slave_colors.length))]);  
       circle.setStrokeWeight(this.getIntProp("SENSOR_THICKNESS"));
 
       //push circle outwards    
@@ -211,6 +211,7 @@ public class CircleMode extends Mode {
 
 //based on https://processing.org/examples/bounce.html
 private class BouncingSlave {
+  color[] slave_colors = {color(155, 255, 255), color(255, 255, 0),  color(255, 180, 255), color(180, 155, 255), color(195, 255, 0)};
   private int master;
   private int minrad;
   private int maxrad;
@@ -226,7 +227,8 @@ private class BouncingSlave {
   private int xdirection = 1;  // Left or Right
   private int ydirection = 1;  // Top to Bottom
   private int circleColor = 0;
-
+  private color col;
+  
   public BouncingSlave(int master, int xpos, int ypos, int minrad, int maxrad, float shrinkfactor, int slavethickness) {
     this.master = master;
     this.rad = minrad;
@@ -241,6 +243,7 @@ private class BouncingSlave {
     this.circleColor = (int)random(50, 120);
     this.xdirection = (int) pow(-1, (int) random(1, 3));
     this.ydirection = (int) pow(-1, (int) random(1, 3));
+    this.col = slave_colors[floor(random(0, slave_colors.length -1))];
   }
 
   public void update() {
@@ -263,7 +266,8 @@ private class BouncingSlave {
 
     // Draw the shape
     float constrainedBpm = constrain(currentBpm, 40, 150);
-    stroke(color(constrain(this.circleColor*map(constrainedBpm, 40, 150, 2, 0.2), 0, 100), 84, 255));
+    //stroke(color(constrain(this.circleColor*map(constrainedBpm, 40, 150, 2, 0.2), 0, 100), 84, 255));
+    stroke(this.col);
     strokeWeight(slavethickness);
     ellipse(this.xpos, this.ypos, this.rad, this.rad);
   }
